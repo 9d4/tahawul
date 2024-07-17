@@ -1,6 +1,6 @@
 module github.com/9d4/exceljson
 
-go 1.21.12
+go 1.21
 
 require (
 	github.com/go-chi/chi/v5 v5.1.0

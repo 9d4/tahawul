@@ -81,6 +81,7 @@ func main() {
 			}
 			out[res.sheet] = res.data
 		}
+		log.Info().Any("out", out).Send()
 
 		w.Header().Set("Content-Type", "application/json")
 		if err := json.NewEncoder(w).Encode(out); err != nil {
@@ -134,7 +135,9 @@ func readSheet(ctx context.Context, excelFile *excelize.File, sheet string) ([]m
 			continue
 		}
 
-		cols, err := rows.Columns()
+		cols, err := rows.Columns(excelize.Options{
+			RawCellValue: true,
+		})
 		if err != nil {
 			return nil, err
 		}

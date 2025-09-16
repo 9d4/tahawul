@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net"
 	"net/http"
 	"slices"
@@ -13,6 +14,8 @@ import (
 	"github.com/rs/zerolog/log"
 	"github.com/xuri/excelize/v2"
 )
+
+const MAX_ROWS = 1e10
 
 func main() {
 	r := chi.NewRouter()
@@ -38,7 +41,7 @@ func main() {
 
 		type sheetResult struct {
 			sheet string
-			data  any
+			data  []map[string]any
 			err   error
 		}
 
@@ -71,6 +74,11 @@ func main() {
 			cancel()
 		}()
 
+		l := log.Info().
+			Str("path", r.URL.Path).
+			Str("query", r.URL.RawQuery).
+			Str("sheets", strings.Join(sheets, ","))
+
 		out := map[string]any{}
 		for res := range results {
 			if res.err != nil {
@@ -80,8 +88,10 @@ func main() {
 				return
 			}
 			out[res.sheet] = res.data
+			l.Int(fmt.Sprintf("sheet:%s", res.sheet), len(res.data))
 		}
-		log.Info().Any("out", out).Send()
+
+		l.Msg("converted xlsx to json")
 
 		w.Header().Set("Content-Type", "application/json")
 		if err := json.NewEncoder(w).Encode(out); err != nil {
@@ -152,8 +162,24 @@ func readSheet(ctx context.Context, excelFile *excelize.File, sheet string) ([]m
 			}
 			currentMap[headers[i]] = v
 		}
-		sheetOut = append(sheetOut, currentMap)
-		index++
+
+		allColsNil := true
+		for _, v := range currentMap {
+			if v != nil {
+				allColsNil = false
+				break
+			}
+		}
+
+		if !allColsNil {
+			sheetOut = append(sheetOut, currentMap)
+			index++
+		}
+
+		if len(sheetOut) >= MAX_ROWS {
+			log.Info().Int("len", len(sheetOut)).Msg("MAX_ROWS hit, returning rows earlier")
+			return sheetOut, nil
+		}
 	}
 
 	return sheetOut, nil

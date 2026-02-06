@@ -26,6 +26,8 @@ func main() {
 			return
 		}
 
+		keepField := r.URL.Query().Get("keep_field") == "true"
+
 		excelFile, err := excelize.OpenReader(file)
 		if err != nil {
 			w.WriteHeader(500)
@@ -53,7 +55,7 @@ func main() {
 		for _, sheet := range sheets {
 			sheet := sheet
 			go func() {
-				data, err := readSheet(ctx, excelFile, sheet)
+				data, err := readSheet(ctx, excelFile, sheet, keepField)
 				if err != nil {
 					results <- sheetResult{
 						err: err,
@@ -111,7 +113,7 @@ func main() {
 	}
 }
 
-func readSheet(ctx context.Context, excelFile *excelize.File, sheet string) ([]map[string]any, error) {
+func readSheet(ctx context.Context, excelFile *excelize.File, sheet string, keepOriginalFieldName bool) ([]map[string]any, error) {
 	rows, err := excelFile.Rows(sheet)
 	if err != nil {
 		return nil, err
@@ -135,10 +137,14 @@ func readSheet(ctx context.Context, excelFile *excelize.File, sheet string) ([]m
 			}
 
 			for _, v := range cols {
-				v = strings.TrimSpace(v)
-				v = strings.ToLower(v)
-				v = strings.ReplaceAll(v, " ", "_")
-				headers = append(headers, v)
+				if keepOriginalFieldName {
+					headers = append(headers, v)
+				} else {
+					v = strings.TrimSpace(v)
+					v = strings.ToLower(v)
+					v = strings.ReplaceAll(v, " ", "_")
+					headers = append(headers, v)
+				}
 			}
 
 			index++
